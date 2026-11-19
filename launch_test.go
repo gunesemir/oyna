@@ -39,6 +39,8 @@ func TestInstalledLaunch(t *testing.T) {
  "commandline" "/_v2-entry-point --verb=%verb% --"
  "compatmanager_layer_name" "container-runtime"
  }`)
+	fixture(t, filepath.Join(rt, "sniper_platform_test", "files", "keep"), "")
+	fixture(t, filepath.Join(rt, "pressure-vessel", "bin", "pv-verify"), "#!/bin/sh\nexit 0\n")
 	fixture(t, filepath.Join(rt, "umu"), "#!/bin/sh\nset -eu\ntest \"$1\" = --verb=runinprefix\ntest \"$2\" = --\nshift 2\nexec \"$@\"\n")
 	fixture(t, filepath.Join(tool, "proton"), `#!/bin/sh
 set -eu
@@ -62,7 +64,7 @@ exit 37
 	fixture(t, config, fmt.Sprintf("[umu]\nproton=%q\nprefix=%q\nexe=%q\ngame_id='umu-42'\nlaunch_args=['two words','--help','']\n", tool, prefix, exe))
 	for _, args := range [][]string{{"run", exe, "two words", "--help", ""}, {"--config", config}} {
 		cmd := exec.Command(bin, args...)
-		cmd.Env = []string{"HOME=" + base, "PATH=/usr/bin:/bin", "UMU_FOLDERS_PATH=" + base, "PROTONPATH=GE Test", "PROTON_VERB=runinprefix", "GAMEID=umu-42", "SteamGameId=123"}
+		cmd.Env = []string{"HOME=" + base, "PATH=/usr/bin:/bin", "UMU_FOLDERS_PATH=" + base, "PROTONPATH=GE Test", "PROTON_VERB=runinprefix", "GAMEID=umu-42", "SteamGameId=123", "UMU_RUNTIME_UPDATE=0"}
 		out, err := cmd.CombinedOutput()
 		var exit *exec.ExitError
 		if !errors.As(err, &exit) || exit.ExitCode() != 37 {

@@ -12,10 +12,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 )
 
-const usage = "Usage: oyna [PROTON_VERB] EXE [ARG ...]\n       oyna --config FILE\n       oyna --help | --version\nSet PROTONPATH to an installed tool. Use an empty EXE or createprefix to initialize a prefix."
+const usage = "Usage: oyna [PROTON_VERB] EXE [ARG ...]\n       oyna --config FILE\n       oyna --help | --version\nPROTONPATH accepts an installed tool, UMU-Proton, GE-Proton, UMU-Latest or GE-Latest. Use an empty EXE or createprefix to initialize a prefix."
 
 func validVerb(v string) bool {
 	switch v {
@@ -33,7 +32,7 @@ func run(args []string) error {
 		fmt.Println(usage)
 		return nil
 	case "--version", "-v":
-		fmt.Println("oyna 0.1.0")
+		fmt.Println("oyna 0.2.0")
 		return nil
 	}
 	if os.Geteuid() == 0 {
@@ -74,11 +73,22 @@ func run(args []string) error {
 	if !validVerb(verb) {
 		verb = "waitforexitandrun"
 	}
-	if os.Getenv("UMU_NO_PROTON") == "1" || os.Getenv("UMU_CONTAINER_NSENTER") == "1" {
-		return errors.New("native passthrough and container re-entry are pending")
+	if os.Getenv("UMU_NO_PROTON") == "1" {
+		return errors.New("native passthrough is unsupported")
 	}
-	if strings.HasSuffix(i.Exe, "winetricks") {
-		return errors.New("winetricks support is pending")
+	isWinetricks := strings.HasSuffix(i.Exe, "winetricks")
+	if isWinetricks {
+		if err = checkWinetricks(i.Args, ""); err != nil {
+			return err
+		}
+	}
+	provision, err := newProvisioner(home)
+	if err != nil {
+		return err
+	}
+	i.Proton, err = provision.prepare(home, i.Proton)
+	if err != nil {
+		return err
 	}
 	tool, rt, cmd, err := installedCommand(home, i.Proton, verb)
 	if err != nil {
@@ -106,8 +116,33 @@ func run(args []string) error {
 		prefix = resolved
 	}
 
+	cwd := ""
+	if isWinetricks {
+		if tool.kind != "proton" {
+			return errors.New("winetricks requires Proton")
+		}
+		if err = checkWinetricks(i.Args, prefix); err != nil {
+			return err
+		}
+		cwd = filepath.Join(tool.dir, "protonfixes")
+		i.Exe = "winetricks"
+		if bundled := filepath.Join(cwd, "winetricks"); regular(bundled) {
+			i.Exe = bundled
+		}
+		for n, arg := range i.Args {
+			if strings.Contains(arg, ".") && regular(arg) {
+				i.Args[n], err = filepath.Abs(arg)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		i.Args = append([]string{"-q"}, i.Args...)
+	}
 	install := os.Getenv("STEAM_COMPAT_INSTALL_PATH")
-	if i.Exe == "createprefix" || i.Exe == "" {
+	if isWinetricks {
+		// Winetricks resolves inside Proton and runs from protonfixes.
+	} else if i.Exe == "createprefix" || i.Exe == "" {
 		i.Exe = ""
 		install = ""
 	} else {
@@ -159,8 +194,23 @@ func run(args []string) error {
 		"STEAM_COMPAT_CLIENT_INSTALL_PATH": "",
 		"PROTON_CRASH_REPORT_DIR":          filepath.Join(os.TempDir(), "umu_crashreports"),
 	}
+	if isWinetricks {
+		vars["WINETRICKS_SUPER_QUIET"] = "1"
+		if log := os.Getenv("UMU_LOG"); log == "1" || log == "debug" {
+			vars["WINETRICKS_SUPER_QUIET"] = ""
+		}
+	}
+	if gamescopeSession() {
+		vars["LD_PRELOAD"] = ""
+	}
 	for k, v := range vars {
 		if err = os.Setenv(k, v); err != nil {
+			return err
+		}
+	}
+	if !isWinetricks {
+		cmd, err = containerCommand(tool, rt, verb, cmd)
+		if err != nil {
 			return err
 		}
 	}
@@ -169,11 +219,15 @@ func run(args []string) error {
 	if log := os.Getenv("UMU_LOG"); log == "1" || log == "debug" {
 		fmt.Fprintf(os.Stderr, "oyna: launching %q\n", cmd)
 	}
-	return syscall.Exec(cmd[0], cmd, os.Environ())
+	return supervise(cmd, cwd)
 }
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
+		var exit *launchExit
+		if errors.As(err, &exit) {
+			os.Exit(exit.code)
+		}
 		fmt.Fprintln(os.Stderr, "oyna:", err)
 		os.Exit(1)
 	}

@@ -43,6 +43,21 @@ func readLayer(dir, verb string) (layer, error) {
 	return l, nil
 }
 
+func executableLayer(dir, verb string) (layer, error) {
+	l, err := readLayer(dir, verb)
+	if err != nil {
+		return l, err
+	}
+	st, err := os.Stat(l.command[0])
+	if err != nil {
+		return l, err
+	}
+	if !st.Mode().IsRegular() || st.Mode().Perm()&0111 == 0 {
+		return l, fmt.Errorf("tool entry point is not executable: %s", l.command[0])
+	}
+	return l, nil
+}
+
 func regular(path string) bool {
 	s, err := os.Stat(path)
 	return err == nil && s.Mode().IsRegular()
