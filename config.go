@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/BurntSushi/toml"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 type invocation struct {
@@ -23,18 +24,22 @@ func expandHome(s, home string) string {
 	return s
 }
 func fromFile(path, home string) (invocation, error) {
+	type launchConfig struct {
+		Exe, Prefix, Proton, Store string
+		GameID                     string `toml:"game_id"`
+		Args                       any    `toml:"launch_args"`
+	}
 	var cfg struct {
-		Umu struct {
-			Exe, Prefix, Proton, Store string
-			GameID                     string `toml:"game_id"`
-			Args                       any    `toml:"launch_args"`
-		}
+		Oyna *launchConfig
 	}
 	var i invocation
 	if _, err := toml.DecodeFile(expandHome(path, home), &cfg); err != nil {
 		return i, err
 	}
-	c := cfg.Umu
+	c := cfg.Oyna
+	if c == nil {
+		return i, fmt.Errorf("configuration requires [oyna]")
+	}
 	i = invocation{Exe: expandHome(c.Exe, home), Prefix: expandHome(c.Prefix, home), Proton: expandHome(c.Proton, home), GameID: c.GameID, Store: c.Store}
 	for _, p := range []string{i.Prefix, i.Proton} {
 		s, e := os.Stat(p)

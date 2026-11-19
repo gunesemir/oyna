@@ -104,6 +104,10 @@ set -eu
 test "$1" = -q
 test "$2" = vcrun2022
 test "$WINETRICKS_SUPER_QUIET" = 1
+test "$GAMEID" = umu-default
+test "$UMU_ID" = umu-default
+test "$SteamAppId" = default
+test "$WINEPREFIX" = "$HOME/.oyna/prefixes/default"
 test "$PWD" = "$PROTONPATH/protonfixes"
 printf 'vcrun2022\n' >> "$WINEPREFIX/winetricks.log"
 `)
@@ -118,7 +122,7 @@ printf 'vcrun2022\n' >> "$WINEPREFIX/winetricks.log"
 			t.Fatal("reinstalled dependency verb")
 		}
 	}
-	prefix := filepath.Join(base, "Games", "umu", "umu-default")
+	prefix := filepath.Join(base, ".oyna", "prefixes", "default")
 	fixture(t, filepath.Join(prefix, "winetricks.log"), "win10\n")
 	if err := checkWinetricks([]string{"win10"}, prefix); err != nil {
 		t.Fatal(err)
@@ -134,7 +138,7 @@ func TestContainerReentry(t *testing.T) {
 	fixture(t, filepath.Join(rt, "toolmanifest.vdf"), `"manifest" { "commandline" "/_v2-entry-point --verb=%verb% --" "compatmanager_layer_name" "container-runtime" }`)
 	fixture(t, filepath.Join(tool, "toolmanifest.vdf"), `"manifest" { "commandline" "/proton %verb%" "compatmanager_layer_name" "proton" }`)
 	fixture(t, filepath.Join(rt, "pressure-vessel", "bin", "steam-runtime-launch-client"), "#!/bin/sh\necho --bus-name=com.steampowered.Apptestprefix\n")
-	t.Setenv("UMU_CONTAINER_NSENTER", "1")
+	t.Setenv("OYNA_CONTAINER_NSENTER", "1")
 	t.Setenv("STEAM_COMPAT_APP_ID", "testprefix")
 	t.Setenv("STEAM_COMPAT_LAUNCHER_SERVICE", "")
 	t.Setenv("PROTON_VERB", "run")
@@ -158,7 +162,7 @@ func TestSteamAssignedID(t *testing.T) {
 	for _, key := range []string{"STEAM_COMPAT_TRANSCODED_MEDIA_PATH", "STEAM_COMPAT_MEDIA_PATH", "STEAM_FOSSILIZE_DUMP_PATH", "DXVK_STATE_CACHE_PATH"} {
 		t.Setenv(key, "")
 	}
-	t.Setenv("UMU_STEAM_GAME_ID", "180388626432") // 42 << 32
+	t.Setenv("OYNA_STEAM_GAME_ID", "180388626432") // 42 << 32
 	if steamAppID() != 42 {
 		t.Fatal("lost inherited shortcut ID")
 	}

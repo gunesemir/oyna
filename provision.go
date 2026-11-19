@@ -33,13 +33,13 @@ func newProvisioner(home string) (*provisioner, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &provisioner{d, dataHome(home), githubAPI, steamRepo}, nil
+	return &provisioner{d, oynaHome(home), githubAPI, steamRepo}, nil
 }
 func protonFamily(alias string) string {
 	switch alias {
-	case "", "UMU-Proton", "UMU-Latest":
+	case "UMU-Proton", "UMU-Latest":
 		return "UMU-Proton"
-	case "GE-Proton", "GE-Latest":
+	case "", "GE-Proton", "GE-Latest":
 		return "GE-Proton"
 	}
 	return ""
@@ -50,9 +50,9 @@ func (p *provisioner) proton(alias string) (string, error) {
 		return alias, nil
 	}
 	if alias == "" {
-		alias = "UMU-Latest"
+		alias = "GE-Proton"
 	}
-	unlock, err := cacheLock(filepath.Join(p.base, "umu", "compatibilitytools.d.lock"))
+	unlock, err := cacheLock(filepath.Join(p.base, "proton", ".install.lock"))
 	if err != nil {
 		return "", err
 	}
@@ -68,23 +68,23 @@ func (p *provisioner) proton(alias string) (string, error) {
 	return "", err
 }
 func (p *provisioner) cachedProton(alias, family string) string {
-	aliasDir := filepath.Join(p.base, "umu", "compatibilitytools", alias)
+	aliasDir := filepath.Join(p.base, "proton", alias)
 	if _, err := executableLayer(aliasDir, "run"); err == nil {
 		return aliasDir
 	}
 	var candidates []string
-	for _, root := range []string{filepath.Join(p.base, "Steam", "compatibilitytools.d"), filepath.Join(p.base, "umu", "compatibilitytools")} {
-		entries, _ := os.ReadDir(root)
-		for _, entry := range entries {
-			if !strings.HasPrefix(entry.Name(), family) {
-				continue
-			}
-			path := filepath.Join(root, entry.Name())
-			if _, err := executableLayer(path, "run"); err == nil {
-				candidates = append(candidates, path)
-			}
+	root := filepath.Join(p.base, "proton")
+	entries, _ := os.ReadDir(root)
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), family) {
+			continue
+		}
+		path := filepath.Join(root, entry.Name())
+		if _, err := executableLayer(path, "run"); err == nil {
+			candidates = append(candidates, path)
 		}
 	}
+
 	sort.Slice(candidates, func(i, j int) bool { return naturalLess(filepath.Base(candidates[i]), filepath.Base(candidates[j])) })
 	if len(candidates) > 0 {
 		return candidates[len(candidates)-1]
@@ -151,7 +151,7 @@ func (p *provisioner) installProton(alias, family string) (string, error) {
 	if filepath.Base(root) != root {
 		return "", fmt.Errorf("invalid release name %q", root)
 	}
-	parent := filepath.Join(p.base, "Steam", "compatibilitytools.d")
+	parent := filepath.Join(p.base, "proton")
 	target := filepath.Join(parent, root)
 	if _, err := executableLayer(target, "run"); err != nil {
 		sums, err := p.downloads.bytes(sum.URL)
@@ -187,7 +187,7 @@ func (p *provisioner) installProton(alias, family string) (string, error) {
 		}
 	}
 	if strings.HasSuffix(alias, "-Latest") {
-		dir := filepath.Join(p.base, "umu", "compatibilitytools")
+		dir := filepath.Join(p.base, "proton")
 		if err = os.MkdirAll(dir, 0755); err != nil {
 			return "", err
 		}

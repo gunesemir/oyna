@@ -28,18 +28,18 @@ type downloads struct {
 
 func newDownloads(home string) (*downloads, error) {
 	retries := 3
-	if s, ok := os.LookupEnv("UMU_HTTP_RETRIES"); ok {
+	if s, ok := os.LookupEnv("OYNA_HTTP_RETRIES"); ok {
 		n, e := strconv.Atoi(s)
 		if e != nil || n < 0 {
-			return nil, fmt.Errorf("invalid UMU_HTTP_RETRIES %q", s)
+			return nil, fmt.Errorf("invalid OYNA_HTTP_RETRIES %q", s)
 		}
 		retries = n
 	}
 	timeout := 5.0
-	if s, ok := os.LookupEnv("UMU_HTTP_TIMEOUT"); ok {
+	if s, ok := os.LookupEnv("OYNA_HTTP_TIMEOUT"); ok {
 		n, e := strconv.ParseFloat(s, 64)
 		if e != nil || n < 0 || math.IsNaN(n) || math.IsInf(n, 0) || n > 86400 {
-			return nil, fmt.Errorf("invalid UMU_HTTP_TIMEOUT %q", s)
+			return nil, fmt.Errorf("invalid OYNA_HTTP_TIMEOUT %q", s)
 		}
 		timeout = n
 	}
@@ -49,16 +49,12 @@ func newDownloads(home string) (*downloads, error) {
 	transport.ResponseHeaderTimeout = duration
 	// Bound each socket read while allowing large archives to take longer overall.
 	transport.DialContext = (&timeoutDialer{duration: duration}).dial
-	cache := os.Getenv("XDG_CACHE_HOME")
-	if cache == "" {
-		cache = filepath.Join(home, ".cache")
-	}
 	return &downloads{client: &http.Client{Transport: transport, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
 			return fmt.Errorf("too many redirects")
 		}
 		return secureURL(req.URL.String())
-	}}, retries: retries, cache: filepath.Join(cache, "umu")}, nil
+	}}, retries: retries, cache: filepath.Join(oynaHome(home), ".cache")}, nil
 }
 
 type timeoutDialer struct{ duration time.Duration }

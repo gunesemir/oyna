@@ -10,7 +10,7 @@ import (
 )
 
 func containerCommand(tool layer, rt, verb string, wrapped []string) ([]string, error) {
-	if os.Getenv("UMU_CONTAINER_NSENTER") != "1" {
+	if os.Getenv("OYNA_CONTAINER_NSENTER") != "1" {
 		return wrapped, nil
 	}
 	if rt == "" {

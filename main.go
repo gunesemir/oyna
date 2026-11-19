@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const usage = "Usage: oyna [PROTON_VERB] EXE [ARG ...]\n       oyna --config FILE\n       oyna --help | --version\nPROTONPATH accepts an installed tool, UMU-Proton, GE-Proton, UMU-Latest or GE-Latest. Use an empty EXE or createprefix to initialize a prefix."
+const usage = "Usage: oyna [PROTON_VERB] EXE [ARG ...]\n       oyna --config FILE\n       oyna --help | --version\nUnset PROTONPATH selects GE-Proton. PROTONPATH accepts an installed tool, UMU-Proton, GE-Proton, UMU-Latest or GE-Latest. Use an empty EXE or createprefix to initialize a prefix."
 
 func validVerb(v string) bool {
 	switch v {
@@ -73,7 +73,7 @@ func run(args []string) error {
 	if !validVerb(verb) {
 		verb = "waitforexitandrun"
 	}
-	if os.Getenv("UMU_NO_PROTON") == "1" {
+	if os.Getenv("OYNA_NO_PROTON") == "1" {
 		return errors.New("native passthrough is unsupported")
 	}
 	isWinetricks := strings.HasSuffix(i.Exe, "winetricks")
@@ -98,10 +98,7 @@ func run(args []string) error {
 		i.GameID = "umu-default"
 	}
 	if i.Prefix == "" {
-		i.Prefix = filepath.Join(home, "Games", "umu", i.GameID)
-		if i.Store != "" {
-			i.Prefix = filepath.Join(home, "Games", i.Store)
-		}
+		i.Prefix = filepath.Join(oynaHome(home), "prefixes", "default")
 	}
 	prefix, err := filepath.Abs(expandHome(i.Prefix, home))
 	if err != nil {
@@ -182,8 +179,8 @@ func run(args []string) error {
 		"PROTON_VERB":                      verb,
 		"SteamAppId":                       steamID,
 		"SteamGameId":                      steamID,
-		"UMU_STEAM_GAME_ID":                os.Getenv("SteamGameId"),
-		"UMU_INVOCATION_ID":                hex.EncodeToString(id),
+		"OYNA_STEAM_GAME_ID":               os.Getenv("SteamGameId"),
+		"OYNA_INVOCATION_ID":               hex.EncodeToString(id),
 		"STEAM_COMPAT_APP_ID":              fmt.Sprintf("%x", md5.Sum([]byte(prefix))),
 		"STEAM_COMPAT_TOOL_PATHS":          mounts,
 		"STEAM_COMPAT_MOUNTS":              mounts,
@@ -192,11 +189,11 @@ func run(args []string) error {
 		"STEAM_COMPAT_INSTALL_PATH":        install,
 		"STEAM_RUNTIME_LIBRARY_PATH":       libraryPaths(install),
 		"STEAM_COMPAT_CLIENT_INSTALL_PATH": "",
-		"PROTON_CRASH_REPORT_DIR":          filepath.Join(os.TempDir(), "umu_crashreports"),
+		"PROTON_CRASH_REPORT_DIR":          filepath.Join(os.TempDir(), "oyna_crashreports"),
 	}
 	if isWinetricks {
 		vars["WINETRICKS_SUPER_QUIET"] = "1"
-		if log := os.Getenv("UMU_LOG"); log == "1" || log == "debug" {
+		if log := os.Getenv("OYNA_LOG"); log == "1" || log == "debug" {
 			vars["WINETRICKS_SUPER_QUIET"] = ""
 		}
 	}
@@ -216,7 +213,7 @@ func run(args []string) error {
 	}
 	cmd = append(cmd, i.Exe)
 	cmd = append(cmd, i.Args...)
-	if log := os.Getenv("UMU_LOG"); log == "1" || log == "debug" {
+	if log := os.Getenv("OYNA_LOG"); log == "1" || log == "debug" {
 		fmt.Fprintf(os.Stderr, "oyna: launching %q\n", cmd)
 	}
 	return supervise(cmd, cwd)

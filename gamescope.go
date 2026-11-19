@@ -33,7 +33,7 @@ func steamAppID() uint32 {
 			return uint32(id)
 		}
 	}
-	id, _ := strconv.ParseUint(os.Getenv("UMU_STEAM_GAME_ID"), 10, 64)
+	id, _ := strconv.ParseUint(os.Getenv("OYNA_STEAM_GAME_ID"), 10, 64)
 	return uint32(id >> 32)
 }
 func atom(c *xgb.Conn, name string) (xproto.Atom, error) {
@@ -130,7 +130,7 @@ func watchGamescopeDisplays(ctx context.Context, primaryDisplay, secondaryDispla
 	}
 }
 func invocationPID(pid int) bool {
-	id := os.Getenv("UMU_INVOCATION_ID")
+	id := os.Getenv("OYNA_INVOCATION_ID")
 	if id == "" {
 		return false
 	}
@@ -139,7 +139,7 @@ func invocationPID(pid int) bool {
 		return false
 	}
 	for _, s := range strings.Split(string(data), "\x00") {
-		if s == "UMU_INVOCATION_ID="+id {
+		if s == "OYNA_INVOCATION_ID="+id {
 			return true
 		}
 	}

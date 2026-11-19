@@ -59,14 +59,14 @@ func (p *provisioner) runtime(appID string) error {
 	if spec.variant == "steamrt4-arm64" && runtime.GOARCH == "amd64" {
 		return fmt.Errorf("ARM64 runtime on x86-64 host")
 	}
-	dir := filepath.Join(p.base, "umu", spec.variant)
-	unlock, err := cacheLock(filepath.Join(p.base, "umu", "umu.lock"))
+	dir := filepath.Join(p.base, "rt", spec.variant)
+	unlock, err := cacheLock(filepath.Join(p.base, "rt", ".install.lock"))
 	if err != nil {
 		return err
 	}
 	defer unlock()
 	validation := validateRuntime(dir, spec)
-	if validation == nil && os.Getenv("UMU_RUNTIME_UPDATE") == "0" {
+	if validation == nil && os.Getenv("OYNA_RUNTIME_UPDATE") == "0" {
 		return nil
 	}
 	err = p.installRuntime(dir, spec, validation == nil)
@@ -127,10 +127,25 @@ func (p *provisioner) installRuntime(dir string, spec runtimeSpec, valid bool) e
 
 func resolveTool(home, proton string) (string, error) {
 	dir := expandHome(proton, home)
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(dataHome(home), "Steam", "compatibilitytools.d", dir)
+	if filepath.IsAbs(dir) {
+		return filepath.EvalSymlinks(dir)
 	}
-	return filepath.EvalSymlinks(dir)
+	roots := []string{
+		filepath.Join(oynaHome(home), "proton"),
+		filepath.Join(legacyDataHome(home), "Steam", "compatibilitytools.d"),
+		filepath.Join(legacyDataHome(home), "umu", "compatibilitytools"),
+	}
+	for _, root := range roots {
+		candidate := filepath.Join(root, dir)
+		resolved, err := filepath.EvalSymlinks(candidate)
+		if err == nil {
+			return resolved, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("installed tool %q not found in %s", proton, strings.Join(roots, ", "))
 }
 func (p *provisioner) prepare(home, proton string) (string, error) {
 	dir, err := p.proton(proton)

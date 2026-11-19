@@ -8,15 +8,15 @@ import (
 // This script runs inside pressure-vessel, where the host launcher's path may
 // be unavailable. Publish it atomically alongside the user's installed runtime.
 func runtimeShim(base string) (string, error) {
-	dir := filepath.Join(base, "umu")
-	path := filepath.Join(dir, "umu-shim")
+	dir := filepath.Join(base, "rt")
+	path := filepath.Join(dir, "oyna-shim")
 	if regular(path) {
 		return path, nil
 	}
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", err
 	}
-	f, err := os.CreateTemp(dir, ".umu-shim-*")
+	f, err := os.CreateTemp(dir, ".oyna-shim-*")
 	if err != nil {
 		return "", err
 	}

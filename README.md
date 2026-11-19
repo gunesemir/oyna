@@ -1,74 +1,137 @@
 # oyna
 
-A Linux launcher written in Go, aiming for umu-run compatibility. The launcher builds as one static binary. Proton and the Steam Linux Runtime are installed separately by the launcher when needed.
+Oyna launches Windows games on Linux through Proton, without adding them to Steam. It's written in Go and builds into a single static binary. On a fresh setup, it downloads GE-Proton and the Steam Linux Runtime needed to run it.
+
+The project follows umu-run's launch behavior, with its own defaults, file locations, and configuration names. Compatibility work is still ongoing.
 
 ## Build and run
 
-Use Go 1.23 or newer on Linux. Run oyna as your normal user.
+You'll need Linux and Go 1.23 or newer to build oyna. Run it as your regular user.
 
 ```sh
 CGO_ENABLED=0 go build -trimpath -o oyna .
-./oyna /path/to/game.exe -fullscreen
-GAMEID=umu-42 PROTONPATH=GE-Proton ./oyna /path/to/game.exe
-WINEPREFIX=~/Games/example ./oyna createprefix
+./oyna "/path/to/game.exe" -fullscreen
 ```
 
-An unset `PROTONPATH` selects `UMU-Latest`. `UMU-Proton`, `GE-Proton`, `UMU-Latest`, and `GE-Latest` select the latest release of their respective Proton family. On ARM64, release selection requires an ARM64 asset. An absolute Proton path or an installed directory name under `Steam/compatibilitytools.d` selects a specific installation.
+The first launch downloads the required components. Later launches check for updates. You can choose another Proton build or give a game its own Wine prefix.
 
-Proton is downloaded from its official GitHub release and checked against the published SHA512 or SHA256 checksum. Its `toolmanifest.vdf` determines the Steam runtime. Runtime downloads are checked against Valve's SHA256 manifest, and their platform files are validated with the bundled `pv-verify` before activation and on subsequent launches.
+```sh
+PROTONPATH="/path/to/GE-Proton" ./oyna "/path/to/game.exe"
+WINEPREFIX="$HOME/Games/my-game" ./oyna "/path/to/game.exe"
+```
 
-Managed installs use `$XDG_DATA_HOME` (default `~/.local/share`). Proton versions live under `Steam/compatibilitytools.d`, latest aliases under `umu/compatibilitytools`, and runtimes under `umu/steamrt*`. `UMU_FOLDERS_PATH` overrides that base. In Flatpak, `HOST_XDG_DATA_HOME` supplies the default base. Download caches use `$XDG_CACHE_HOME/umu` (default `~/.cache/umu`).
+To create a prefix before installing a game, run `./oyna createprefix`. Passing an empty executable argument also initializes a prefix.
 
-The default Wine prefix is `~/Games/umu/$GAMEID`, with `GAMEID=umu-default`, or `~/Games/$STORE` when a store is supplied. `WINEPREFIX` overrides it. Use `createprefix` or an empty executable argument to initialize a prefix. Existing prefix directories are preserved, and unexpected `pfx` symlink targets produce an error.
+## Choosing Proton and game fixes
+
+With `PROTONPATH` unset, oyna selects the latest GE-Proton release. If a download fails, it can use an installed GE-Proton build. You can also select `UMU-Proton`, `GE-Latest`, or `UMU-Latest` explicitly.
+
+For a specific installed build, set `PROTONPATH` to its absolute path or its directory name under `~/.oyna/proton`. ARM64 hosts require an ARM64 release asset.
+
+`GAMEID` and `STORE` tell Proton's protonfixes which game and store you're using.
+
+```sh
+GAMEID=umu-42 STORE=gog ./oyna "/path/to/game.exe"
+```
+
+The default `GAMEID` is `umu-default`. Game IDs pass directly to `UMU_ID`, the variable Proton and protonfixes read. The default produces `SteamAppId=default`.
+
+You can pass a Proton verb before the executable or set `PROTON_VERB`. The default verb is `waitforexitandrun`.
+
+## Where files go
+
+Oyna keeps its managed files under `$HOME/.oyna`.
+
+| Content | Location |
+| --- | --- |
+| Proton versions and latest release selections | `~/.oyna/proton` |
+| Steam runtimes | `~/.oyna/rt/<runtime>` |
+| Download cache | `~/.oyna/.cache` |
+| Default Wine prefix | `~/.oyna/prefixes/default` |
+
+**The default prefix is shared across games**, even when you set `GAMEID` or `STORE`. Set `WINEPREFIX` whenever you want a separate prefix for a game.
+
+You can use an existing prefix by setting `WINEPREFIX` to its path. Existing `pfx` directories are used directly. If `pfx` is a symlink, prefix setup replaces it with `pfx -> .`, including when the old link is broken. The former target's contents stay where they are.
+
+Named Proton lookup also searches existing Steam and umu compatibility directories. Those lookup locations use `XDG_DATA_HOME`, or `HOST_XDG_DATA_HOME` in Flatpak. `OYNA_FOLDERS_PATH` supplies an alternate base for the existing `Steam/compatibilitytools.d` and `umu/compatibilitytools` layouts. Managed downloads and caches use the paths in the table above.
+
+Files from an older installation can be selected by explicit path or migrated manually. A Flatpak installation needs permission to access the managed home directory.
 
 ## Updates and recovery
 
-Alias launches check for Proton updates. Required runtimes also check for updates. Interrupted archive downloads resume using HTTP ranges. Install and cache locks coordinate concurrent launches, and validated staging directories are activated atomically. Offline launches can fall back to an existing Proton build and a successfully validated runtime. A damaged runtime must be repaired before launch.
+When you select a release such as `GE-Proton`, oyna checks for a newer version. Selecting a specific installed Proton path pins that build. Required Steam runtimes also receive update checks.
 
-Set `UMU_RUNTIME_UPDATE=0` to skip runtime updates when the installed runtime passes validation. Selecting a specific Proton path pins that tool. `UMU_HTTP_TIMEOUT` controls connection and socket read timeouts in seconds (default 5, zero disables them), and `UMU_HTTP_RETRIES` sets retries after the initial request (default 3).
+Downloads are checked against the published SHA512 or SHA256 checksums. Oyna uses each tool's `toolmanifest.vdf` to choose its runtime, then runs the runtime's bundled `pv-verify` to check its platform files before installation and on later launches.
 
-Updates currently download complete archives. Previous versioned Proton builds and verified cached archives are retained for reuse and existing launches. Optional upstream delta patches are a future optimization.
+Interrupted downloads can resume. Installation locks coordinate simultaneous launches, and a replacement installation takes over only after validation succeeds. If an update fails, an existing Proton build and a validated runtime can still be used. A damaged runtime needs repair before launch.
 
-## Launch integrations
+| Option | Effect |
+| --- | --- |
+| `OYNA_RUNTIME_UPDATE=0` | Skip runtime updates when the installed runtime passes validation |
+| `OYNA_HTTP_TIMEOUT` | Connection and socket read timeout in seconds, default `5`. Set `0` to disable |
+| `OYNA_HTTP_RETRIES` | Retries after the first request, default `3` |
+
+Updates currently download complete archives. Previous Proton versions and verified cached archives are retained for reuse and running games. Delta updates are still pending.
+
+## Winetricks and desktop integration
+
+You can install Windows dependencies through Proton's bundled Winetricks.
 
 ```sh
-PROTONPATH=GE-Proton ./oyna winetricks vcrun2022
-UMU_CONTAINER_NSENTER=1 ./oyna /path/to/game.exe
+./oyna winetricks vcrun2022
 ```
 
-Winetricks uses Proton's bundled script when available, runs from `protonfixes`, and supplies `-q`. Dependency verbs already recorded in `winetricks.log` are rejected, while repeatable settings such as `win10` remain usable. `UMU_LOG=1` or `debug` enables launch diagnostics and disables Winetricks' extra quiet setting. Custom verb files are supported.
+Oyna adds `-q` and runs Winetricks from Proton's `protonfixes` directory. It checks `winetricks.log` to catch dependency verbs that are already installed. Settings such as `win10` can be applied repeatedly, and custom verb files are supported.
 
-Container re-entry looks for the prefix's existing launcher-service bus through the runtime's `steam-runtime-launch-client`. A matching service receives the unwrapped tool command with `runinprefix`. If the service is absent after five checks, the regular launch creates a new container service.
+Set `OYNA_LOG=1` or `OYNA_LOG=debug` to see the launch command and disable Winetricks' extra quiet setting.
 
-In Gamescope sessions with `STEAM_MULTIPLE_XWAYLANDS=1`, the default `waitforexitandrun` launch monitors X11 displays `:0` and `:1`. It assigns `STEAM_GAME` to game windows using Steam's inherited application ID and process ownership. X11 failures are reported and game execution continues. The runtime shim supplies `DISPLAY=:1` when it is missing, and the launch environment clears `LD_PRELOAD` in Gamescope sessions.
+To launch another command inside a prefix's running container, enable container re-entry.
 
-The launcher starts a separate process session, becomes a Linux child subreaper, forwards INT/TERM/HUP to descendants, reaps orphaned children, and waits for descendants to finish. It returns the main launch process's exit code. Signal deaths use `128 + signal`.
+```sh
+OYNA_CONTAINER_NSENTER=1 ./oyna "/path/to/game.exe"
+```
+
+Oyna looks for the existing launcher service up to five times. When it finds one, it launches through `steam-runtime-launch-client` using `runinprefix`. Otherwise, it starts the regular container launch with the service enabled.
+
+In Gamescope sessions with `STEAM_MULTIPLE_XWAYLANDS=1`, oyna tracks game windows on displays `:0` and `:1` and assigns their Steam application ID. This runs with the default `waitforexitandrun` verb. The launcher supplies `DISPLAY=:1` when needed, clears `LD_PRELOAD` for Gamescope, and reports X11 failures while allowing the game to continue.
+
+Oyna forwards INT, TERM, and HUP signals to the game's process tree. It runs as a Linux child subreaper, cleans up exited children, and waits for helper processes to finish. The main launch process determines the exit code. Signal deaths return `128 + signal`.
 
 ## Configuration files
 
+If you'd rather save a game's settings in a file, use a TOML config.
+
 ```toml
-[umu]
-prefix = "~/Games/example"
-proton = "~/.local/share/Steam/compatibilitytools.d/GE-Proton-example"
-exe = "~/Games/example/game.exe"
+[oyna]
+prefix = "~/Games/my-game"
+proton = "~/.oyna/proton/GE-Proton-example"
+exe = "~/Games/my-game/game.exe"
 game_id = "umu-42"
 store = "gog"
 launch_args = ["-fullscreen"]
 ```
 
-Run `oyna --config config.toml`. As in upstream's config mode, `prefix`, `proton`, and `exe` must identify existing directories or files. Paths are relative to the calling directory. A leading Proton verb and the `PROTON_VERB` environment variable are supported in command-line mode.
+```sh
+./oyna --config config.toml
+```
 
-## Validation and compatibility
+The `[oyna]` table and the `prefix`, `proton`, and `exe` fields are required. In config mode, the prefix and Proton directories and the executable file must already exist. Replace the example paths with your own. Relative paths are resolved from the directory where you run oyna.
+
+`game_id`, `store`, and `launch_args` are optional. Launch arguments can be an array of strings or a string split on spaces.
+
+When moving a config from umu-run, change its `[umu]` header to `[oyna]`. Launcher options use the `OYNA_*` names shown here. Upstream tool names and Proton-facing variables such as `UMU_ID` keep their required spelling.
+
+## Development and current limitations
 
 ```sh
 go test ./...
 go vet ./...
 ```
 
-Tests exercise installation and updates through local HTTP servers, SHA512/SHA256 verification, resumed downloads, concurrent installs, offline fallback, runtime repair, archive traversal rejection, CLI/TOML launches, Winetricks, container re-entry, signal forwarding, and orphan reaping. The X11 integration test starts two virtual displays and verifies new game windows receive their Steam ID while unrelated windows remain untouched. It runs when `Xvfb` is on `PATH`.
+The tests cover installation, updates, download verification and resumption, offline fallback, runtime repair, prefix symlink repair, config loading, Winetricks, container re-entry, signals, and child processes. With `Xvfb` on `PATH`, they also check window tagging using two virtual X11 displays.
 
-Live upstream downloads and a real Windows game launch remain unverified in the development cloud environment, whose network proxy returned HTTP 403 for the GitHub release API and Steam runtime repository. Gamescope property handling has been tested with Xvfb. Steam Deck and Flatpak sessions require hardware/session validation.
+Real upstream downloads and Windows game launches still need validation. The development environment returned HTTP 403 for the GitHub release API and Steam runtime repository. Gamescope window handling has been tested with Xvfb. Steam Deck and Flatpak sessions need testing on those systems.
 
-Native runtime passthrough (`UMU_NO_PROTON=1`), automatic game-drive mount detection, and complete edge-case parity remain outside this milestone. Full drop-in compatibility is still in progress.
+Native runtime passthrough (`OYNA_NO_PROTON=1`) and automatic game-drive mount detection are still pending. Further compatibility differences include nested tool chains and updates on filesystems without atomic directory-exchange support.
 
-The upstream behavior reference is [umu-launcher at e2b203a](https://github.com/Open-Wine-Components/umu-launcher/tree/e2b203a1fdd2af9f35166f5713cb3f85d72587e2).
+The upstream reference used during development is [umu-launcher at e2b203a](https://github.com/Open-Wine-Components/umu-launcher/tree/e2b203a1fdd2af9f35166f5713cb3f85d72587e2).

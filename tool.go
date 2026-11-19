@@ -63,8 +63,13 @@ func regular(path string) bool {
 	return err == nil && s.Mode().IsRegular()
 }
 
-func dataHome(home string) string {
-	if p, ok := os.LookupEnv("UMU_FOLDERS_PATH"); ok {
+func oynaHome(home string) string {
+	return filepath.Join(home, ".oyna")
+}
+
+// Legacy storage is used to resolve explicitly named tools from existing launchers.
+func legacyDataHome(home string) string {
+	if p, ok := os.LookupEnv("OYNA_FOLDERS_PATH"); ok {
 		return p
 	}
 	key := "XDG_DATA_HOME"
@@ -79,15 +84,11 @@ func dataHome(home string) string {
 
 func installedCommand(home, proton, verb string) (layer, string, []string, error) {
 	var tool layer
-	base := dataHome(home)
+	base := oynaHome(home)
 	if proton == "" {
-		return tool, "", nil, fmt.Errorf("set PROTONPATH to an installed tool (automatic installation is pending)")
+		return tool, "", nil, fmt.Errorf("PROTONPATH must resolve to an installed tool")
 	}
-	dir := expandHome(proton, home)
-	if !filepath.IsAbs(dir) {
-		dir = filepath.Join(base, "Steam", "compatibilitytools.d", dir)
-	}
-	dir, err := filepath.EvalSymlinks(dir)
+	dir, err := resolveTool(home, proton)
 	if err != nil {
 		return tool, "", nil, err
 	}
@@ -110,7 +111,7 @@ func installedCommand(home, proton, verb string) (layer, string, []string, error
 	if variant == "steamrt4-arm64" && runtime.GOARCH == "amd64" {
 		return tool, "", nil, fmt.Errorf("ARM64 runtime on x86-64 host")
 	}
-	rt := filepath.Join(base, "umu", variant)
+	rt := filepath.Join(base, "rt", variant)
 	container, err := readLayer(rt, verb)
 	if err != nil {
 		return tool, "", nil, fmt.Errorf("installed %s runtime: %w", variant, err)

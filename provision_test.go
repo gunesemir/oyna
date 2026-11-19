@@ -70,9 +70,11 @@ func digest(b []byte) string { return fmt.Sprintf("%x", sha256.Sum256(b)) }
 
 func TestProvisionInstallUpdateRecovery(t *testing.T) {
 	base := t.TempDir()
-	t.Setenv("UMU_FOLDERS_PATH", base)
+	t.Setenv("OYNA_FOLDERS_PATH", filepath.Join(base, "legacy"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(base, "xdg"))
+	t.Setenv("HOST_XDG_DATA_HOME", filepath.Join(base, "host-xdg"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(base, "cache"))
-	t.Setenv("UMU_HTTP_RETRIES", "0")
+	t.Setenv("OYNA_HTTP_RETRIES", "0")
 	proton := func(version string) []byte {
 		return makeArchive(t, []archiveEntry{
 			{name: version + "/toolmanifest.vdf", body: `"manifest" { "commandline" "/proton %verb%" "compatmanager_layer_name" "proton" "require_tool_appid" "1628350" }`},
@@ -86,7 +88,7 @@ func TestProvisionInstallUpdateRecovery(t *testing.T) {
 		{name: "SteamLinuxRuntime_sniper/sniper_platform_test/files/intact", body: "yes"},
 	}, true)
 	var mu sync.Mutex
-	version := "UMU-Proton9-1"
+	version := "GE-Proton9-1"
 	offline := false
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +100,7 @@ func TestProvisionInstallUpdateRecovery(t *testing.T) {
 		}
 		payload := proton(version)
 		switch r.URL.Path {
-		case "/repos/Open-Wine-Components/umu-proton/releases/latest":
+		case "/repos/GloriousEggroll/proton-ge-custom/releases/latest":
 			_ = json.NewEncoder(w).Encode(protonRelease{Assets: []releaseAsset{{Name: version + ".tar.gz", URL: srv.URL + "/proton"}, {Name: version + ".sha512sum", URL: srv.URL + "/sha512"}, {Name: version + ".sha256sum", URL: srv.URL + "/sum"}}})
 		case "/sum":
 			fmt.Fprintf(w, "%s  %s.tar.gz\n", digest(payload), version)
@@ -123,11 +125,14 @@ func TestProvisionInstallUpdateRecovery(t *testing.T) {
 	}
 	p.api = srv.URL
 	p.steam = srv.URL
+	if p.base != filepath.Join(base, ".oyna") || p.downloads.cache != filepath.Join(base, ".oyna", ".cache") {
+		t.Fatalf("unexpected managed paths %s %s", p.base, p.downloads.cache)
+	}
 	first, err := p.prepare(base, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.Base(first) != "UMU-Proton9-1" {
+	if first != filepath.Join(base, ".oyna", "proton", "GE-Proton9-1") {
 		t.Fatalf("unexpected tool %s", first)
 	}
 	var wg sync.WaitGroup
@@ -142,13 +147,13 @@ func TestProvisionInstallUpdateRecovery(t *testing.T) {
 	}
 	wg.Wait()
 	mu.Lock()
-	version = "UMU-Proton9-2"
+	version = "GE-Proton9-2"
 	mu.Unlock()
-	second, err := p.prepare(base, "UMU-Latest")
+	second, err := p.prepare(base, "GE-Latest")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first == second || filepath.Base(second) != "UMU-Proton9-2" {
+	if first == second || filepath.Base(second) != "GE-Proton9-2" {
 		t.Fatalf("failed update %s", second)
 	}
 	if !regular(filepath.Join(first, "proton")) {
@@ -159,33 +164,33 @@ func TestProvisionInstallUpdateRecovery(t *testing.T) {
 	goodRuntime := rt
 	rt = makeArchive(t, []archiveEntry{{name: "SteamLinuxRuntime_sniper/toolmanifest.vdf", body: `"manifest" { "commandline" "/_v2-entry-point --verb=%verb% --" }`}}, true)
 	mu.Unlock()
-	if _, err = p.prepare(base, "UMU-Latest"); err != nil {
+	if _, err = p.prepare(base, "GE-Latest"); err != nil {
 		t.Fatalf("failed-update fallback: %v", err)
 	}
-	if err = validateRuntime(filepath.Join(base, "umu", "steamrt3"), runtimes["1628350"]); err != nil {
+	if err = validateRuntime(filepath.Join(base, ".oyna", "rt", "steamrt3"), runtimes["1628350"]); err != nil {
 		t.Fatalf("failed update damaged installed runtime: %v", err)
 	}
 	mu.Lock()
 	rt = goodRuntime
 	mu.Unlock()
 	// A missing file must fail verification, then be restored from the verified archive.
-	if err = os.Remove(filepath.Join(base, "umu", "steamrt3", "sniper_platform_test", "files", "intact")); err != nil {
+	if err = os.Remove(filepath.Join(base, ".oyna", "rt", "steamrt3", "sniper_platform_test", "files", "intact")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = p.prepare(base, "UMU-Latest"); err != nil {
+	if _, err = p.prepare(base, "GE-Latest"); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()
 	offline = true
 	mu.Unlock()
-	if _, err = p.prepare(base, "UMU-Latest"); err != nil {
+	if _, err = p.prepare(base, "GE-Latest"); err != nil {
 		t.Fatalf("offline fallback: %v", err)
 	}
 	// Invalid runtime plus unavailable downloads must fail closed.
-	if err = os.Remove(filepath.Join(base, "umu", "steamrt3", "sniper_platform_test", "files", "intact")); err != nil {
+	if err = os.Remove(filepath.Join(base, ".oyna", "rt", "steamrt3", "sniper_platform_test", "files", "intact")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = p.prepare(base, "UMU-Latest"); err == nil {
+	if _, err = p.prepare(base, "GE-Latest"); err == nil {
 		t.Fatal("launched corrupt runtime offline")
 	}
 }

@@ -48,7 +48,7 @@ func virtualDisplay(t *testing.T) string {
 }
 func TestGamescopeWindowTags(t *testing.T) {
 	primaryDisplay, secondaryDisplay := virtualDisplay(t), virtualDisplay(t)
-	t.Setenv("UMU_STEAM_GAME_ID", "180388626432")
+	t.Setenv("OYNA_STEAM_GAME_ID", "180388626432")
 	for _, key := range []string{"STEAM_COMPAT_TRANSCODED_MEDIA_PATH", "STEAM_COMPAT_MEDIA_PATH", "STEAM_FOSSILIZE_DUMP_PATH", "DXVK_STATE_CACHE_PATH"} {
 		t.Setenv(key, "")
 	}

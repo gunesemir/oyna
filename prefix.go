@@ -30,16 +30,18 @@ func preparePrefix(dir string) error {
 	case err != nil:
 		return err
 	case info.Mode()&os.ModeSymlink != 0:
-		actual, err := filepath.EvalSymlinks(pfx)
+		temp, err := os.MkdirTemp(dir, ".oyna-pfx-*")
 		if err != nil {
 			return err
 		}
-		root, err := filepath.EvalSymlinks(dir)
-		if err != nil {
+		defer os.RemoveAll(temp)
+		replacement := filepath.Join(temp, "pfx")
+		if err = os.Symlink(".", replacement); err != nil {
 			return err
 		}
-		if actual != root {
-			return fmt.Errorf("pfx symlink points outside prefix root: %s", pfx)
+		// Rename replaces the link itself atomically under the prefix lock.
+		if err = os.Rename(replacement, pfx); err != nil {
+			return err
 		}
 	case !info.IsDir():
 		return fmt.Errorf("expected directory at %s", pfx)
