@@ -124,11 +124,8 @@ When moving a config from umu-run, change its `[umu]` header to `[oyna]`. Launch
 ## Development and current limitations
 
 ```sh
-go test ./...
 go vet ./...
 ```
-
-The tests cover installation, updates, download verification and resumption, offline fallback, runtime repair, prefix symlink repair, config loading, Winetricks, container re-entry, signals, and child processes. With `Xvfb` on `PATH`, they also check window tagging using two virtual X11 displays.
 
 Real upstream downloads and Windows game launches still need validation. The development environment returned HTTP 403 for the GitHub release API and Steam runtime repository. Gamescope window handling has been tested with Xvfb. Steam Deck and Flatpak sessions need testing on those systems.
 
