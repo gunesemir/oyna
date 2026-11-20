@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/BurntSushi/toml"
 )
 
 type invocation struct {
@@ -24,23 +22,46 @@ func expandHome(s, home string) string {
 	return s
 }
 func fromFile(path, home string) (invocation, error) {
-	type launchConfig struct {
-		Exe, Prefix, Proton, Store string
-		GameID                     string `toml:"game_id"`
-		Args                       any    `toml:"launch_args"`
-	}
-	var cfg struct {
-		Oyna *launchConfig
-	}
 	var i invocation
-	if _, err := toml.DecodeFile(expandHome(path, home), &cfg); err != nil {
+	path = expandHome(path, home)
+	data, err := os.ReadFile(path)
+	if err != nil {
 		return i, err
 	}
-	c := cfg.Oyna
-	if c == nil {
-		return i, fmt.Errorf("configuration requires [oyna]")
+	fields := map[string]*string{
+		"exe":        &i.Exe,
+		"WINEPREFIX": &i.Prefix,
+		"PROTONPATH": &i.Proton,
+		"GAMEID":     &i.GameID,
+		"STORE":      &i.Store,
 	}
-	i = invocation{Exe: expandHome(c.Exe, home), Prefix: expandHome(c.Prefix, home), Proton: expandHome(c.Proton, home), GameID: c.GameID, Store: c.Store}
+	for index, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		content := strings.TrimSpace(line)
+		if content == "" || strings.HasPrefix(content, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			return i, fmt.Errorf("%s:%d: expected key=value", path, index+1)
+		}
+		if key == "arg" {
+			i.Args = append(i.Args, value)
+			continue
+		}
+		field, ok := fields[key]
+		if !ok {
+			return i, fmt.Errorf("%s:%d: unknown key %q", path, index+1, key)
+		}
+		*field = value
+	}
+	for _, key := range []string{"exe", "WINEPREFIX", "PROTONPATH"} {
+		field := fields[key]
+		if *field == "" {
+			return i, fmt.Errorf("%s: %s is required", path, key)
+		}
+		*field = expandHome(*field, home)
+	}
 	for _, p := range []string{i.Prefix, i.Proton} {
 		s, e := os.Stat(p)
 		if e != nil {
@@ -53,23 +74,7 @@ func fromFile(path, home string) (invocation, error) {
 	if !regular(i.Exe) {
 		return i, fmt.Errorf("expected executable file at %q", i.Exe)
 	}
-	switch args := c.Args.(type) {
-	case nil:
-	case string:
-		i.Args = strings.Split(args, " ")
-	case []any:
-		for _, v := range args {
-			s, ok := v.(string)
-			if !ok {
-				return i, fmt.Errorf("launch_args must contain strings")
-			}
-			i.Args = append(i.Args, s)
-		}
-	default:
-		return i, fmt.Errorf("invalid launch_args")
-	}
 	// Paths from the config are relative to the calling directory.
-	var err error
 	i.Proton, err = filepath.Abs(i.Proton)
 	return i, err
 }
