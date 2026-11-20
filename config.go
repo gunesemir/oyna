@@ -45,6 +45,9 @@ func fromFile(path, home string) (invocation, error) {
 		if !ok {
 			return i, fmt.Errorf("%s:%d: expected key=value", path, index+1)
 		}
+		if key == "art" {
+			continue
+		}
 		if key == "arg" {
 			i.Args = append(i.Args, value)
 			continue
