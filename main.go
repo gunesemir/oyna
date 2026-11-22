@@ -191,9 +191,6 @@ func run(args []string) error {
 		"STEAM_COMPAT_CLIENT_INSTALL_PATH": "",
 		"PROTON_CRASH_REPORT_DIR":          filepath.Join(os.TempDir(), "oyna_crashreports"),
 	}
-	if i.ProtonUseWoW64 != "" {
-		vars["PROTON_USE_WOW64"] = i.ProtonUseWoW64
-	}
 	if isWinetricks {
 		vars["WINETRICKS_SUPER_QUIET"] = "1"
 		if log := os.Getenv("OYNA_LOG"); log == "1" || log == "debug" {
