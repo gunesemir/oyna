@@ -5,10 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/google/shlex"
 )
 
 type invocation struct {
 	Exe, Prefix, Proton, GameID, Store string
+	ProtonUseWoW64                     string
 	Args                               []string
 }
 
@@ -45,11 +48,21 @@ func fromFile(path, home string) (invocation, error) {
 		if !ok {
 			return i, fmt.Errorf("%s:%d: expected key=value", path, index+1)
 		}
-		if key == "art" {
+		switch key {
+		case "art":
 			continue
-		}
-		if key == "arg" {
-			i.Args = append(i.Args, value)
+		case "arg":
+			args, err := shlex.Split(value)
+			if err != nil {
+				return i, fmt.Errorf("%s:%d: invalid arg value: %w", path, index+1, err)
+			}
+			i.Args = append(i.Args, args...)
+			continue
+		case "PROTON_USE_WOW64":
+			if value != "0" && value != "1" {
+				return i, fmt.Errorf("%s:%d: PROTON_USE_WOW64 must be 0 or 1", path, index+1)
+			}
+			i.ProtonUseWoW64 = value
 			continue
 		}
 		field, ok := fields[key]

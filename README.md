@@ -29,9 +29,9 @@ WINEPREFIX=~/.oyna/prefixes/my-game
 PROTONPATH=/path/to/GE-Proton
 GAMEID=umu-42
 STORE=gog
-arg=-fullscreen
+arg=-novid -nojoy -fullscreen
 ```
 
-Run it with `./oyna --config game.conf`. The executable, prefix, and Proton paths must already exist. `GAMEID`, `STORE`, and `arg` are optional. Use one `arg=` line per argument. Spaces in values are kept as written.
+Run it with `./oyna --config game.conf`. The executable, prefix, and Proton paths must already exist. `GAMEID`, `STORE`, and `arg` are optional. List game arguments on the `arg=` line and quote any argument that contains spaces.
 
 Licensed under [0BSD](LICENSE).
