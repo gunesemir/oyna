@@ -189,7 +189,12 @@ func run(args []string) error {
 		"STEAM_COMPAT_INSTALL_PATH":        install,
 		"STEAM_RUNTIME_LIBRARY_PATH":       libraryPaths(install),
 		"STEAM_COMPAT_CLIENT_INSTALL_PATH": "",
-		"PROTON_CRASH_REPORT_DIR":          filepath.Join(os.TempDir(), "oyna_crashreports"),
+	}
+	if _, ok := os.LookupEnv("PROTON_CRASH_REPORT_DIR"); !ok {
+		vars["PROTON_CRASH_REPORT_DIR"] = filepath.Join(os.TempDir(), "oyna_crashreports")
+	}
+	for key, value := range i.ProtonOptions {
+		vars[key] = value
 	}
 	if isWinetricks {
 		vars["WINETRICKS_SUPER_QUIET"] = "1"

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/google/shlex"
@@ -12,6 +14,38 @@ import (
 type invocation struct {
 	Exe, Prefix, Proton, GameID, Store string
 	Args                               []string
+	ProtonOptions                      map[string]string
+}
+
+// Proton and its graphics layers can add runtime options independently of Oyna.
+var protonOptionName = regexp.MustCompile(`^(?:(?:PROTON_|WINE_|DXVK_|VKD3D_)[A-Z0-9_]+|WINEDLLOVERRIDES|WINEDEBUG|WINEARCH|STEAM_COMPAT_CONFIG|HOST_LC_ALL|FNA3D_FORCE_DRIVER)$`)
+
+func isProtonOption(key string) bool {
+	return key != "PROTON_VERB" && protonOptionName.MatchString(key)
+}
+
+func (i *invocation) parseArgs(value string) error {
+	words, err := shlex.Split(value)
+	if err != nil {
+		return err
+	}
+	command := slices.Index(words, "%command%")
+	if command < 0 {
+		i.Args = append(i.Args, words...)
+		return nil
+	}
+	if slices.Contains(words[command+1:], "%command%") {
+		return fmt.Errorf("expected exactly one %%command%%")
+	}
+	for _, word := range words[:command] {
+		key, value, ok := strings.Cut(word, "=")
+		if !ok || !isProtonOption(key) {
+			return fmt.Errorf("expected a Proton environment assignment before %%command%%, got %q", word)
+		}
+		i.ProtonOptions[key] = value
+	}
+	i.Args = append(i.Args, words[command+1:]...)
+	return nil
 }
 
 func expandHome(s, home string) string {
@@ -24,7 +58,7 @@ func expandHome(s, home string) string {
 	return s
 }
 func fromFile(path, home string) (invocation, error) {
-	var i invocation
+	i := invocation{ProtonOptions: make(map[string]string)}
 	path = expandHome(path, home)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -51,18 +85,20 @@ func fromFile(path, home string) (invocation, error) {
 		case "art":
 			continue
 		case "arg":
-			args, err := shlex.Split(value)
-			if err != nil {
+			if err := i.parseArgs(value); err != nil {
 				return i, fmt.Errorf("%s:%d: invalid arg value: %w", path, index+1, err)
 			}
-			i.Args = append(i.Args, args...)
 			continue
 		}
 		field, ok := fields[key]
-		if !ok {
+		switch {
+		case ok:
+			*field = value
+		case isProtonOption(key):
+			i.ProtonOptions[key] = value
+		default:
 			return i, fmt.Errorf("%s:%d: unknown key %q", path, index+1, key)
 		}
-		*field = value
 	}
 	for _, key := range []string{"exe", "WINEPREFIX", "PROTONPATH"} {
 		field := fields[key]
