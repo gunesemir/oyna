@@ -32,7 +32,7 @@ func run(args []string) error {
 		fmt.Println(usage)
 		return nil
 	case "--version", "-v":
-		fmt.Println("oyna 0.1")
+		fmt.Println("oyna 0.2")
 		return nil
 	}
 	if os.Geteuid() == 0 {

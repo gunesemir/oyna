@@ -7,7 +7,7 @@ Oyna launches native Linux games and runs Windows games through Proton. It downl
 Download the `.tar.xz` archive for your system from the [latest release](https://github.com/gunesemir/oyna/releases/latest). Extract it and run Oyna as your regular user. For example, on x86-64:
 
 ```sh
-tar -xJf oyna-v0.1-linux-amd64.tar.xz
+tar -xJf oyna-v0.2-linux-amd64.tar.xz
 ./oyna --version
 ```
 
