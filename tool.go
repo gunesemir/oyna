@@ -103,26 +103,33 @@ func installedCommand(home, proton, verb string) (layer, string, []string, error
 		}
 		return tool, "", append([]string{shim}, tool.command...), nil
 	}
-	variants := map[string]string{"1391110": "steamrt2", "1628350": "steamrt3", "4183110": "steamrt4", "4185400": "steamrt4-arm64"}
-	variant := variants[tool.required]
-	if variant == "" {
+	spec, ok := runtimes[tool.required]
+	if !ok {
 		return tool, "", nil, fmt.Errorf("unknown runtime app ID %q", tool.required)
 	}
-	if variant == "steamrt4-arm64" && runtime.GOARCH == "amd64" {
+	if spec.variant == "steamrt4-arm64" && runtime.GOARCH == "amd64" {
 		return tool, "", nil, fmt.Errorf("ARM64 runtime on x86-64 host")
 	}
-	rt := filepath.Join(base, "rt", variant)
-	container, err := readLayer(rt, verb)
+	rt := filepath.Join(base, "rt", spec.variant)
+	cmd, err := runtimeCommand(rt, verb)
 	if err != nil {
-		return tool, "", nil, fmt.Errorf("installed %s runtime: %w", variant, err)
-	}
-	if container.required != "" || container.kind != "container-runtime" {
-		return tool, "", nil, fmt.Errorf("unexpected runtime manifest in %s", rt)
+		return tool, "", nil, err
 	}
 	shim, err := runtimeShim(base)
 	if err != nil {
 		return tool, "", nil, err
 	}
-	cmd := append(container.command, shim)
+	cmd = append(cmd, shim)
 	return tool, rt, append(cmd, tool.command...), nil
+}
+
+func runtimeCommand(dir, verb string) ([]string, error) {
+	container, err := executableLayer(dir, verb)
+	if err != nil {
+		return nil, fmt.Errorf("installed runtime %s: %w", dir, err)
+	}
+	if container.required != "" || container.kind != "container-runtime" {
+		return nil, fmt.Errorf("unexpected runtime manifest in %s", dir)
+	}
+	return container.command, nil
 }

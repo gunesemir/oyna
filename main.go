@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const usage = "Usage: oyna [PROTON_VERB] EXE [ARG ...]\n       oyna --config FILE\n       oyna --help | --version\nUnset PROTONPATH selects GE-Proton. PROTONPATH accepts an installed tool, UMU-Proton, GE-Proton, UMU-Latest or GE-Latest. Use an empty EXE or createprefix to initialize a prefix."
+const usage = "Usage: oyna [PROTON_VERB] EXE [ARG ...]\n       OYNA_NO_PROTON=1 oyna NATIVE_GAME [ARG ...]\n       oyna --config FILE\n       oyna --help | --version\nUnset PROTONPATH selects GE-Proton for Windows games. PROTONPATH accepts an installed tool, UMU-Proton, GE-Proton, UMU-Latest or GE-Latest. Use an empty EXE or createprefix to initialize a prefix. Native configs accept runtime=steamrt3 to use the Steam Linux Runtime."
 
 func validVerb(v string) bool {
 	switch v {
@@ -38,9 +38,6 @@ func run(args []string) error {
 	if os.Geteuid() == 0 {
 		return errors.New("run oyna as an unprivileged user")
 	}
-	if strings.Contains(os.Getenv("LD_LIBRARY_PATH"), "musl") {
-		return errors.New("a glibc host is required")
-	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -56,7 +53,7 @@ func run(args []string) error {
 			return err
 		}
 	} else {
-		if validVerb(args[0]) {
+		if !i.native() && validVerb(args[0]) {
 			if !override {
 				verb = args[0]
 			}
@@ -66,15 +63,15 @@ func run(args []string) error {
 			return errors.New("missing executable after Proton verb")
 		}
 		i.Exe, i.Args = args[0], args[1:]
-		if _, ok := os.LookupEnv("WINEPREFIX"); ok && i.Prefix == "" {
-			return errors.New("WINEPREFIX is empty")
-		}
+	}
+	if i.native() {
+		return i.runNative(home)
+	}
+	if strings.Contains(os.Getenv("LD_LIBRARY_PATH"), "musl") {
+		return errors.New("a glibc host is required")
 	}
 	if !validVerb(verb) {
 		verb = "waitforexitandrun"
-	}
-	if os.Getenv("OYNA_NO_PROTON") == "1" {
-		return errors.New("native passthrough is unsupported")
 	}
 	isWinetricks := strings.HasSuffix(i.Exe, "winetricks")
 	if isWinetricks {
@@ -98,7 +95,7 @@ func run(args []string) error {
 		i.GameID = "umu-default"
 	}
 	if i.Prefix == "" {
-		i.Prefix = filepath.Join(oynaHome(home), "prefixes", "default")
+		i.Prefix = filepath.Join(oynaHome(home), "prefix", "default")
 	}
 	prefix, err := filepath.Abs(expandHome(i.Prefix, home))
 	if err != nil {
@@ -190,11 +187,13 @@ func run(args []string) error {
 		"STEAM_RUNTIME_LIBRARY_PATH":       libraryPaths(install),
 		"STEAM_COMPAT_CLIENT_INSTALL_PATH": "",
 	}
+	for key := range i.LaunchEnv {
+		if _, managed := vars[key]; managed {
+			return fmt.Errorf("%s is set by Oyna and cannot be assigned in arg", key)
+		}
+	}
 	if _, ok := os.LookupEnv("PROTON_CRASH_REPORT_DIR"); !ok {
 		vars["PROTON_CRASH_REPORT_DIR"] = filepath.Join(os.TempDir(), "oyna_crashreports")
-	}
-	for key, value := range i.ProtonOptions {
-		vars[key] = value
 	}
 	if isWinetricks {
 		vars["WINETRICKS_SUPER_QUIET"] = "1"
@@ -216,8 +215,18 @@ func run(args []string) error {
 			return err
 		}
 	}
+	return i.launch(cmd, cwd)
+}
+
+func (i invocation) launch(cmd []string, cwd string) error {
 	cmd = append(cmd, i.Exe)
 	cmd = append(cmd, i.Args...)
+	cmd = append(i.Wrapper, cmd...)
+	for key, value := range i.LaunchEnv {
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
 	if log := os.Getenv("OYNA_LOG"); log == "1" || log == "debug" {
 		fmt.Fprintf(os.Stderr, "oyna: launching %q\n", cmd)
 	}
