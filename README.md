@@ -1,10 +1,10 @@
-# Oyna
+# oyna
 
-Oyna launches native Linux games and runs Windows games through Proton. It downloads GE-Proton and the Steam Linux Runtime as needed and stores them under `~/.oyna`.
+oyna launches native Linux games and runs Windows games through Proton. It downloads GE-Proton and the Steam Linux Runtime as needed and stores them under `~/.oyna`.
 
 ## Install
 
-Download the `.tar.xz` archive for your system from the [latest release](https://github.com/gunesemir/oyna/releases/latest). Extract it and run Oyna as your regular user. For example, on x86-64:
+Download the `.tar.xz` archive for your system from the [latest release](https://github.com/gunesemir/oyna/releases/latest). Extract it and run oyna as your regular user. For example, on x86-64:
 
 ```sh
 tar -xJf oyna-v0.2-linux-amd64.tar.xz
@@ -19,7 +19,7 @@ To build from source, run `CGO_ENABLED=0 go build -o oyna .` with Go 1.23 or new
 ./oyna "/path/to/game.exe" -fullscreen
 ```
 
-Oyna uses `~/.oyna/prefix/default` as its Wine prefix. Set `WINEPREFIX` to give a game its own prefix, and set `PROTONPATH` to select an installed Proton version.
+oyna uses `~/.oyna/prefix/default` as its Wine prefix. Set `WINEPREFIX` to give a game its own prefix, and set `PROTONPATH` to select an installed Proton version.
 
 ```sh
 WINEPREFIX="$HOME/.oyna/prefixes/my-game" PROTON_LOG=1 ./oyna "/path/to/game.exe"
@@ -35,8 +35,8 @@ Create a `game.conf` file with one `key=value` entry per line. Oyna uses Proton 
 
 ```ini
 exe=/path/to/My Game/game.exe
-WINEPREFIX=~/.oyna/prefixes/my-game
-PROTONPATH=/path/to/GE-Proton
+WINEPREFIX=~/.oyna/prefix/my-game
+PROTONPATH=~/.oyna/proton/GE-Proton
 arg=PROTON_LOG=1 %command% -fullscreen
 ```
 
