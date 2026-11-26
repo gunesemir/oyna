@@ -64,6 +64,14 @@ func run(args []string) error {
 		}
 		i.Exe, i.Args = args[0], args[1:]
 	}
+	// These settings control setup before launch applies the game's environment.
+	for _, key := range []string{"OYNA_RUNTIME_UPDATE", "OYNA_CONTAINER_NSENTER"} {
+		if value, ok := i.LaunchEnv[key]; ok {
+			if err := os.Setenv(key, value); err != nil {
+				return err
+			}
+		}
+	}
 	if i.native() {
 		return i.runNative(home)
 	}

@@ -124,10 +124,12 @@ func fromFile(path, home string) (invocation, error) {
 		return i, fmt.Errorf("%s: exe is required", path)
 	}
 	i.Exe = expandHome(i.Exe, home)
-	if !regular(i.Exe) {
+	native := i.native()
+	protonShortcut := !native && (i.Exe == "winecfg.exe" || i.Exe == "createprefix")
+	if !protonShortcut && !regular(i.Exe) {
 		return i, fmt.Errorf("expected executable file at %q", i.Exe)
 	}
-	if i.native() {
+	if native {
 		return i, nil
 	}
 	if i.Runtime != "" {

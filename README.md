@@ -42,14 +42,16 @@ arg=PROTON_LOG=1 %command% -fullscreen
 
 Launch it with `./oyna --config game.conf`. `GAMEID`, `STORE`, and `arg` are optional.
 
+Set `exe=winecfg.exe` to open Wine Configuration with the config's Wine prefix and Proton version.
+Set `exe=createprefix` to initialize the config's Wine prefix.
+
 ### Native Linux games
 
-Set `OYNA_NO_PROTON=1` in the game config or run `OYNA_NO_PROTON=1 ./oyna --config game.conf`. Oyna launches the game through the host's `/bin/sh` from the game's directory. Executables run with their own interpreter or as native binaries. A readable POSIX `.sh` script can run without the execute bit.
+Put `OYNA_NO_PROTON=1` at the start of the `arg=` line before any wrappers and `%command%`. You can also run `OYNA_NO_PROTON=1 ./oyna --config game.conf`. Oyna launches the game through the host's `/bin/sh` from the game's directory. Executables run with their own interpreter or as native binaries. A readable POSIX `.sh` script can run without the execute bit.
 
 ```ini
 exe=/games/My Game/start.sh
-OYNA_NO_PROTON=1
-arg=gamemoderun %command% -fullscreen
+arg=OYNA_NO_PROTON=1 gamemoderun %command% -fullscreen
 ```
 
 Add `runtime=steamrt3` to run the game inside the Steam Linux Runtime. Oyna installs and verifies the selected runtime on demand. Supported names are `steamrt2`, `steamrt3`, `steamrt4`, and `steamrt4-arm64` for ARM64.
@@ -63,6 +65,8 @@ arg=PROTON_LOG=1 gamescope -f -- gamemoderun %command% -fullscreen
 ```
 
 Oyna expands `%command%` to the native or Proton launch, including the Steam Linux Runtime when selected. Install any wrappers you use and make them available on `PATH`. Put the whole wrapper chain on one `arg=` line. You can add other `arg=` lines, and game arguments are passed in file order.
+
+Use `arg=OYNA_RUNTIME_UPDATE=0 %command%` to skip update checks when a valid Steam Linux Runtime is already installed. Use `arg=OYNA_CONTAINER_NSENTER=1 %command%` to let a Proton launch join an existing container for the same prefix.
 
 Quote values and arguments that contain spaces. Oyna uses shell-style quoting and runs the command directly. Values such as `$HOME` are passed literally, so use an absolute path for environment variables that take a path. Use the dedicated config fields for Oyna settings such as `WINEPREFIX` and `PROTONPATH`.
 
